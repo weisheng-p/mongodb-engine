@@ -347,7 +347,7 @@ class SQLCompiler(NonrelCompiler):
 class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
 
     @safe_call
-    def insert(self, data, return_id=False):
+    def insert(self, data_list, return_id=False):
         """
         Stores a document using field columns as element names, except
         for the primary key field for which "_id" is used.
@@ -356,23 +356,27 @@ class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
         document is created, otherwise value for a primary key may not
         be None.
         """
-        document = {}
-        for field, value in data.iteritems():
-            if field.primary_key:
-                if value is None:
-                    if len(data) != 1:
-                        raise DatabaseError("Can't save entity with _id "
-                                            "set to None.")
+        keys = []
+        pk = self.query.get_meta().pk.column
+        for data in data_list:
+            document = {}
+            for field in data:
+                value = data[field]
+                if field == pk:
+                    if value is None:
+                        raise  DatabaseError("Can't save entity with _id "
+                                                 "set to None.")
+                    else:
+                        document['_id'] = value
                 else:
-                    document['_id'] = value
-            else:
-                document[field.column] = value
+                    document[field] = value
 
-        collection = self.get_collection()
-        options = self.connection.operation_flags.get('save', {})
-        key = collection.save(document, **options)
+            collection = self.get_collection()
+            options = self.connection.operation_flags.get('save', {})
+            key = collection.save(document, **options)
+            keys.append(key)
         if return_id:
-            return key
+            return keys[-1]
 
 
 # TODO: Define a common nonrel API for updates and add it to the nonrel
